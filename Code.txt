@@ -1,0 +1,21 @@
+import html
+import unicodedata
+
+def convert_to_html_entities(text):
+    converted_text = ""
+    for char in text:
+        # Get the Unicode name of the character
+        try:
+            name = unicodedata.name(char)
+            # Convert to HTML entity
+            html_entity = f"&{name.lower().replace(' ', '_')};"
+        except ValueError:
+            # If no Unicode name, keep the character as is
+            html_entity = char
+        converted_text += html_entity
+    return converted_text
+
+# Example usage
+input_text = "À Ä Á"
+output_text = convert_to_html_entities(input_text)
+print(output_text)
