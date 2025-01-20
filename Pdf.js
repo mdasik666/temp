@@ -1,28 +1,32 @@
 import React, { useEffect, useRef } from 'react';
-import pdfjsLib from 'pdfjs-dist/webpack';
+import WebViewer from '@pdftron/webviewer';
 
-const PdfToHtml = ({ pdfUrl }) => {
-  const canvasRef = useRef();
+const WebViewerComponent = () => {
+  const viewerDiv = useRef(null);
 
   useEffect(() => {
-    const renderPdf = async () => {
-      const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
-      const page = await pdf.getPage(1);
+    WebViewer(
+      {
+        path: '/lib', // Path to the WebViewer lib folder
+        initialDoc: '/docs/file1.pdf', // Replace with your document URL
+        enableSemanticComparison: true, // Enables semantic text comparison
+      },
+      viewerDiv.current
+    ).then((instance) => {
+      const { docViewer, annotManager } = instance;
 
-      const viewport = page.getViewport({ scale: 1 });
-      const canvas = canvasRef.current;
-      const context = canvas.getContext('2d');
+      // Enable semantic text comparison
+      docViewer.loadDocument('/docs/file2.pdf', {
+        comparison: {
+          type: 'semantic', // Specify the comparison type
+        },
+      });
 
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      instance.UI.openElements(['comparisonPanel']);
+    });
+  }, []);
 
-      await page.render({ canvasContext: context, viewport }).promise;
-    };
-
-    renderPdf();
-  }, [pdfUrl]);
-
-  return <canvas ref={canvasRef} style={{ border: '1px solid black' }} />;
+  return <div className="webviewer" ref={viewerDiv} style={{ height: '100vh' }} />;
 };
 
-export default PdfToHtml;
+export default WebViewerComponent;
