@@ -1,71 +1,55 @@
-import React, { useState } from "react";
-import DiffMatchPatch from "diff-match-patch";
+import difflib
+from bs4 import BeautifulSoup
 
-const HtmlComparison = () => {
-  const [html1, setHtml1] = useState("");
-  const [html2, setHtml2] = useState("");
-  const [highlightedHtml1, setHighlightedHtml1] = useState("");
-  const [highlightedHtml2, setHighlightedHtml2] = useState("");
+def compare_html(file1, file2, output_file):
+    # Read both HTML files
+    with open(file1, 'r', encoding='utf-8') as f1, open(file2, 'r', encoding='utf-8') as f2:
+        html1 = f1.read()
+        html2 = f2.read()
 
-  const handleFileUpload = (e, setHtml) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setHtml(event.target.result);
-      };
-      reader.readAsText(file);
-    }
-  };
+    # Parse the HTML files with BeautifulSoup
+    soup1 = BeautifulSoup(html1, 'html.parser')
+    soup2 = BeautifulSoup(html2, 'html.parser')
 
-  const compareHtml = () => {
-    const dmp = new DiffMatchPatch();
-    const diffs = dmp.diff_main(html1, html2);
-    dmp.diff_cleanupSemantic(diffs);
+    # Extract text from the HTML, preserving structure
+    text1 = soup1.prettify()
+    text2 = soup2.prettify()
 
-    // Generate highlighted HTML
-    const html1WithDiffs = diffs
-      .map(([type, text]) => {
-        if (type === -1) return `<span style="background-color: #ffcccc">${text}</span>`;
-        if (type === 0) return text;
-        return "";
-      })
-      .join("");
+    # Generate a diff using difflib
+    diff = difflib.ndiff(text1.splitlines(), text2.splitlines())
 
-    const html2WithDiffs = diffs
-      .map(([type, text]) => {
-        if (type === 1) return `<span style="background-color: #ccffcc">${text}</span>`;
-        if (type === 0) return text;
-        return "";
-      })
-      .join("");
+    # Highlight changes in HTML
+    highlighted_html = ""
+    for line in diff:
+        if line.startswith('- '):  # Line present only in file1
+            highlighted_html += f"<span style='background-color: red;'>{line[2:]}</span>\n"
+        elif line.startswith('+ '):  # Line present only in file2
+            highlighted_html += f"<span style='background-color: green;'>{line[2:]}</span>\n"
+        elif line.startswith('? '):  # Line shows differences within the same line
+            continue
+        else:  # Unchanged line
+            highlighted_html += line[2:] + "\n"
 
-    setHighlightedHtml1(html1WithDiffs);
-    setHighlightedHtml2(html2WithDiffs);
-  };
+    # Wrap highlighted content in an HTML structure
+    result_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>HTML Comparison</title>
+    </head>
+    <body>
+        <pre>{highlighted_html}</pre>
+    </body>
+    </html>
+    """
 
-  return (
-    <div>
-      <h2>HTML Comparison</h2>
-      <div>
-        <label>Upload HTML 1:</label>
-        <input type="file" accept=".html" onChange={(e) => handleFileUpload(e, setHtml1)} />
-        <label>Upload HTML 2:</label>
-        <input type="file" accept=".html" onChange={(e) => handleFileUpload(e, setHtml2)} />
-      </div>
-      <button onClick={compareHtml}>Compare</button>
-      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "20px" }}>
-        <div style={{ width: "45%", border: "1px solid black", padding: "10px", overflow: "auto" }}>
-          <h3>HTML 1</h3>
-          <div dangerouslySetInnerHTML={{ __html: highlightedHtml1 }}></div>
-        </div>
-        <div style={{ width: "45%", border: "1px solid black", padding: "10px", overflow: "auto" }}>
-          <h3>HTML 2</h3>
-          <div dangerouslySetInnerHTML={{ __html: highlightedHtml2 }}></div>
-        </div>
-      </div>
-    </div>
-  );
-};
+    # Write the result to a new HTML file
+    with open(output_file, 'w', encoding='utf-8') as output:
+        output.write(result_html)
 
-export default HtmlComparison;
+# Usage
+file1 = 'file1.html'  # Path to the first HTML file
+file2 = 'file2.html'  # Path to the second HTML file
+output_file = 'output.html'  # Path to save the highlighted HTML
+
+compare_html(file1, file2, output_file)
