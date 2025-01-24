@@ -3,68 +3,156 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF to Canvas</title>
+    <title>PDF Comparison</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.min.js"></script>
     <style>
-        #pdf-container {
+        body {
+            font-family: Arial, sans-serif;
             text-align: center;
             margin: 20px;
         }
+        #pdf-container {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
         canvas {
             border: 1px solid #000;
+            margin: 10px;
+            cursor: pointer;
+        }
+        #highlight {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
         }
     </style>
 </head>
 <body>
+    <h1>PDF Comparison Tool</h1>
+    <p>Select two PDF files to compare their first pages and highlight differences.</p>
+    <input type="file" id="pdf1-upload" accept="application/pdf">
+    <input type="file" id="pdf2-upload" accept="application/pdf">
+    <button id="highlight">Highlight Differences</button>
+
     <div id="pdf-container">
-        <h1>Render PDF to Canvas</h1>
-        <canvas id="pdf-canvas"></canvas>
-        <br>
-        <input type="file" id="pdf-upload" accept="application/pdf">
+        <div>
+            <h3>PDF 1</h3>
+            <canvas id="pdf1-canvas"></canvas>
+        </div>
+        <div>
+            <h3>PDF 2</h3>
+            <canvas id="pdf2-canvas"></canvas>
+        </div>
     </div>
 
     <script>
-        const canvas = document.getElementById('pdf-canvas');
-        const ctx = canvas.getContext('2d');
-        const fileInput = document.getElementById('pdf-upload');
+        const canvas1 = document.getElementById('pdf1-canvas');
+        const canvas2 = document.getElementById('pdf2-canvas');
+        const ctx1 = canvas1.getContext('2d');
+        const ctx2 = canvas2.getContext('2d');
+        const fileInput1 = document.getElementById('pdf1-upload');
+        const fileInput2 = document.getElementById('pdf2-upload');
+        const highlightButton = document.getElementById('highlight');
 
-        fileInput.addEventListener('change', async (event) => {
-            const file = event.target.files[0];
-            if (file) {
-                const fileReader = new FileReader();
+        let imageData1, imageData2;
 
+        // Function to load a PDF and render the first page on a canvas
+        async function renderPDF(file, canvas, ctx) {
+            const fileReader = new FileReader();
+            return new Promise((resolve, reject) => {
                 fileReader.onload = async function () {
                     const pdfData = new Uint8Array(this.result);
-
                     try {
-                        // Load PDF
                         const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
-                        console.log('PDF loaded');
-
-                        // Load first page
                         const page = await pdf.getPage(1);
-                        console.log('Page loaded');
-
-                        // Set canvas dimensions
                         const viewport = page.getViewport({ scale: 1.5 });
                         canvas.width = viewport.width;
                         canvas.height = viewport.height;
 
-                        // Render the page on the canvas
                         const renderContext = {
                             canvasContext: ctx,
                             viewport: viewport
                         };
                         await page.render(renderContext).promise;
-                        console.log('Page rendered');
+                        resolve(ctx.getImageData(0, 0, canvas.width, canvas.height));
                     } catch (error) {
                         console.error('Error rendering PDF:', error);
+                        reject(error);
                     }
                 };
-
                 fileReader.readAsArrayBuffer(file);
+            });
+        }
+
+        // Event listeners for file uploads
+        fileInput1.addEventListener('change', async (event) => {
+            if (event.target.files[0]) {
+                imageData1 = await renderPDF(event.target.files[0], canvas1, ctx1);
             }
         });
+
+        fileInput2.addEventListener('change', async (event) => {
+            if (event.target.files[0]) {
+                imageData2 = await renderPDF(event.target.files[0], canvas2, ctx2);
+            }
+        });
+
+        // Function to compare image data and highlight differences
+        function highlightDifferences() {
+            if (!imageData1 || !imageData2) {
+                alert('Please upload both PDF files.');
+                return;
+            }
+
+            const width = Math.min(imageData1.width, imageData2.width);
+            const height = Math.min(imageData1.height, imageData2.height);
+
+            const diffCanvas = document.createElement('canvas');
+            const diffCtx = diffCanvas.getContext('2d');
+            diffCanvas.width = width;
+            diffCanvas.height = height;
+
+            const diffData = diffCtx.createImageData(width, height);
+            const data1 = imageData1.data;
+            const data2 = imageData2.data;
+            const diff = diffData.data;
+
+            for (let i = 0; i < diff.length; i += 4) {
+                const r1 = data1[i], g1 = data1[i + 1], b1 = data1[i + 2];
+                const r2 = data2[i], g2 = data2[i + 1], b2 = data2[i + 2];
+
+                if (r1 !== r2 || g1 !== g2 || b1 !== b2) {
+                    // Highlight differences in red
+                    diff[i] = 255;      // Red
+                    diff[i + 1] = 0;    // Green
+                    diff[i + 2] = 0;    // Blue
+                    diff[i + 3] = 255;  // Alpha
+                } else {
+                    // Copy original pixel
+                    diff[i] = data1[i];
+                    diff[i + 1] = data1[i + 1];
+                    diff[i + 2] = data1[i + 2];
+                    diff[i + 3] = data1[i + 3];
+                }
+            }
+
+            diffCtx.putImageData(diffData, 0, 0);
+            const diffImage = new Image();
+            diffImage.src = diffCanvas.toDataURL();
+
+            const diffContainer = document.createElement('div');
+            diffContainer.innerHTML = '<h3>Differences</h3>';
+            diffContainer.appendChild(diffImage);
+            document.body.appendChild(diffContainer);
+        }
+
+        // Highlight button event
+        highlightButton.addEventListener('click', highlightDifferences);
     </script>
 </body>
 </html>
