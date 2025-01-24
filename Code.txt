@@ -1,18 +1,70 @@
-import unicodedata
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to Canvas</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.min.js"></script>
+    <style>
+        #pdf-container {
+            text-align: center;
+            margin: 20px;
+        }
+        canvas {
+            border: 1px solid #000;
+        }
+    </style>
+</head>
+<body>
+    <div id="pdf-container">
+        <h1>Render PDF to Canvas</h1>
+        <canvas id="pdf-canvas"></canvas>
+        <br>
+        <input type="file" id="pdf-upload" accept="application/pdf">
+    </div>
 
-def symbol_to_word_with_unicodedata(text):
-    words = []
-    for char in text:
-        try:
-            # Get the Unicode name of the character
-            name = unicodedata.name(char)
-            words.append(name.lower().replace(" ", "_"))  # Convert to a friendly format
-        except ValueError:
-            # If no Unicode name exists (e.g., for regular letters), keep the character as is
-            words.append(char)
-    return " ".join(words)
+    <script>
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        const fileInput = document.getElementById('pdf-upload');
 
-# Example usage
-input_text = "The area of a circle is πr² and the resistance is 10Ω."
-converted_text = symbol_to_word_with_unicodedata(input_text)
-print(converted_text)
+        fileInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const fileReader = new FileReader();
+
+                fileReader.onload = async function () {
+                    const pdfData = new Uint8Array(this.result);
+
+                    try {
+                        // Load PDF
+                        const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+                        console.log('PDF loaded');
+
+                        // Load first page
+                        const page = await pdf.getPage(1);
+                        console.log('Page loaded');
+
+                        // Set canvas dimensions
+                        const viewport = page.getViewport({ scale: 1.5 });
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+
+                        // Render the page on the canvas
+                        const renderContext = {
+                            canvasContext: ctx,
+                            viewport: viewport
+                        };
+                        await page.render(renderContext).promise;
+                        console.log('Page rendered');
+                    } catch (error) {
+                        console.error('Error rendering PDF:', error);
+                    }
+                };
+
+                fileReader.readAsArrayBuffer(file);
+            }
+        });
+    </script>
+</body>
+</html>
