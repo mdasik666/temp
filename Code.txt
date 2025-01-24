@@ -1,107 +1,71 @@
-import React, { useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
+import React, { useState } from "react";
+import DiffMatchPatch from "diff-match-patch";
 
-const PdfComparison = ({ pdf1Url, pdf2Url }) => {
-  const canvas1Ref = useRef(null);
-  const canvas2Ref = useRef(null);
-  const [pdf1, setPdf1] = useState(null);
-  const [pdf2, setPdf2] = useState(null);
-  const [pageNumber, setPageNumber] = useState(1);
+const HtmlComparison = () => {
+  const [html1, setHtml1] = useState("");
+  const [html2, setHtml2] = useState("");
+  const [highlightedHtml1, setHighlightedHtml1] = useState("");
+  const [highlightedHtml2, setHighlightedHtml2] = useState("");
 
-  const renderPage = async (pdf, canvasRef, pageNum) => {
-    const page = await pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: 1 });
-    const canvas = canvasRef.current;
-    const context = canvas.getContext('2d');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    const renderContext = {
-      canvasContext: context,
-      viewport,
-    };
-    await page.render(renderContext).promise;
-    return page;
-  };
-
-  const highlightDifferences = async () => {
-    if (!pdf1 || !pdf2) return;
-
-    const page1 = await pdf1.getPage(pageNumber);
-    const page2 = await pdf2.getPage(pageNumber);
-
-    const textContent1 = await page1.getTextContent();
-    const textContent2 = await page2.getTextContent();
-
-    const canvas1 = canvas1Ref.current;
-    const canvas2 = canvas2Ref.current;
-    const ctx1 = canvas1.getContext('2d');
-    const ctx2 = canvas2.getContext('2d');
-
-    ctx1.clearRect(0, 0, canvas1.width, canvas1.height); // Clear canvas
-    ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
-
-    // Render pages again before highlighting
-    await renderPage(pdf1, canvas1Ref, pageNumber);
-    await renderPage(pdf2, canvas2Ref, pageNumber);
-
-    // Compare and highlight differences
-    const items1 = textContent1.items;
-    const items2 = textContent2.items;
-
-    for (let i = 0; i < items1.length; i++) {
-      const item1 = items1[i];
-      const item2 = items2[i];
-
-      // Compare text content
-      if (item1 && item2 && item1.str !== item2.str) {
-        const [x1, y1, w1, h1] = item1.transform;
-        const [x2, y2, w2, h2] = item2.transform;
-
-        // Highlight difference on first canvas
-        ctx1.fillStyle = 'rgba(255, 0, 0, 0.5)';
-        ctx1.fillRect(x1, canvas1.height - y1, w1, h1);
-
-        // Highlight difference on second canvas
-        ctx2.fillStyle = 'rgba(255, 0, 0, 0.5)';
-        ctx2.fillRect(x2, canvas2.height - y2, w2, h2);
-      }
+  const handleFileUpload = (e, setHtml) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setHtml(event.target.result);
+      };
+      reader.readAsText(file);
     }
   };
 
-  const loadPdf = async (url) => {
-    const loadingTask = pdfjsLib.getDocument(url);
-    return await loadingTask.promise;
+  const compareHtml = () => {
+    const dmp = new DiffMatchPatch();
+    const diffs = dmp.diff_main(html1, html2);
+    dmp.diff_cleanupSemantic(diffs);
+
+    // Generate highlighted HTML
+    const html1WithDiffs = diffs
+      .map(([type, text]) => {
+        if (type === -1) return `<span style="background-color: #ffcccc">${text}</span>`;
+        if (type === 0) return text;
+        return "";
+      })
+      .join("");
+
+    const html2WithDiffs = diffs
+      .map(([type, text]) => {
+        if (type === 1) return `<span style="background-color: #ccffcc">${text}</span>`;
+        if (type === 0) return text;
+        return "";
+      })
+      .join("");
+
+    setHighlightedHtml1(html1WithDiffs);
+    setHighlightedHtml2(html2WithDiffs);
   };
-
-  useEffect(() => {
-    (async () => {
-      const loadedPdf1 = await loadPdf(pdf1Url);
-      const loadedPdf2 = await loadPdf(pdf2Url);
-      setPdf1(loadedPdf1);
-      setPdf2(loadedPdf2);
-
-      await renderPage(loadedPdf1, canvas1Ref, pageNumber);
-      await renderPage(loadedPdf2, canvas2Ref, pageNumber);
-    })();
-  }, [pdf1Url, pdf2Url, pageNumber]);
-
-  const nextPage = () => setPageNumber((prev) => prev + 1);
-  const prevPage = () => setPageNumber((prev) => Math.max(prev - 1, 1));
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-        <canvas ref={canvas1Ref}></canvas>
-        <canvas ref={canvas2Ref}></canvas>
+      <h2>HTML Comparison</h2>
+      <div>
+        <label>Upload HTML 1:</label>
+        <input type="file" accept=".html" onChange={(e) => handleFileUpload(e, setHtml1)} />
+        <label>Upload HTML 2:</label>
+        <input type="file" accept=".html" onChange={(e) => handleFileUpload(e, setHtml2)} />
       </div>
-      <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        <button onClick={prevPage}>Previous Page</button>
-        <button onClick={nextPage}>Next Page</button>
-        <button onClick={highlightDifferences}>Compare</button>
+      <button onClick={compareHtml}>Compare</button>
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "20px" }}>
+        <div style={{ width: "45%", border: "1px solid black", padding: "10px", overflow: "auto" }}>
+          <h3>HTML 1</h3>
+          <div dangerouslySetInnerHTML={{ __html: highlightedHtml1 }}></div>
+        </div>
+        <div style={{ width: "45%", border: "1px solid black", padding: "10px", overflow: "auto" }}>
+          <h3>HTML 2</h3>
+          <div dangerouslySetInnerHTML={{ __html: highlightedHtml2 }}></div>
+        </div>
       </div>
     </div>
   );
 };
 
-export default PdfComparison;
+export default HtmlComparison;
