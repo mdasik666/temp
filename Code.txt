@@ -1,45 +1,8 @@
-from docx import Document
-from docx.shared import RGBColor
-
-def highlight_multiple_words(doc_path, target_words, output_path):
-    doc = Document(doc_path)
-
-    def process_text_runs(runs, target_words):
+ef process_text_runs(runs, target_words):
         """ Process each run in a paragraph or table cell to highlight multiple words """
         for run in runs:
             for word in target_words:
-                if word in run.text:
-                    run.font.color.rgb = RGBColor(255, 0, 0)  # Set text color to red
-
-    # Process paragraphs in the main document
-    for para in doc.paragraphs:
-        process_text_runs(para.runs, target_words)
-
-    # Process tables in the document
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    process_text_runs(para.runs, target_words)
-
-    # Process headers and footers
-    for section in doc.sections:
-        # Headers
-        header = section.header
-        for para in header.paragraphs:
-            process_text_runs(para.runs, target_words)
-
-        # Footers
-        footer = section.footer
-        for para in footer.paragraphs:
-            process_text_runs(para.runs, target_words)
-
-    # Save the modified document
-    doc.save(output_path)
-
-# Usage
-doc_path = "input.docx"  # Input document
-target_words = ["example", "document", "highlight"]  # List of words to highlight
-output_path = "output.docx"  # Output document
-
-highlight_multiple_words(doc_path, target_words, output_path)
+                f = re.search(word, run.text)
+                if f is not None:
+                    i0,i1 = f.span()
+                run.font.color.rgb = RGBColor(255, 0, 0)  # Set text color to red
