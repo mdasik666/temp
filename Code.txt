@@ -1,55 +1,44 @@
-import difflib
-from bs4 import BeautifulSoup
+from docx import Document
+from docx.shared import RGBColor
 
-def compare_html(file1, file2, output_file):
-    # Read both HTML files
-    with open(file1, 'r', encoding='utf-8') as f1, open(file2, 'r', encoding='utf-8') as f2:
-        html1 = f1.read()
-        html2 = f2.read()
+def highlight_text_in_red(doc_path, target_word, output_path):
+    doc = Document(doc_path)
 
-    # Parse the HTML files with BeautifulSoup
-    soup1 = BeautifulSoup(html1, 'html.parser')
-    soup2 = BeautifulSoup(html2, 'html.parser')
+    def process_text_runs(runs, target_word):
+        """ Process each run in a paragraph or table cell """
+        for run in runs:
+            if target_word in run.text:
+                run.font.color.rgb = RGBColor(255, 0, 0)  # Red color
 
-    # Extract text from the HTML, preserving structure
-    text1 = soup1.prettify()
-    text2 = soup2.prettify()
+    # Process paragraphs in the main document
+    for para in doc.paragraphs:
+        process_text_runs(para.runs, target_word)
 
-    # Generate a diff using difflib
-    diff = difflib.ndiff(text1.splitlines(), text2.splitlines())
+    # Process tables in the document
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    process_text_runs(para.runs, target_word)
 
-    # Highlight changes in HTML
-    highlighted_html = ""
-    for line in diff:
-        if line.startswith('- '):  # Line present only in file1
-            highlighted_html += f"<span style='background-color: red;'>{line[2:]}</span>\n"
-        elif line.startswith('+ '):  # Line present only in file2
-            highlighted_html += f"<span style='background-color: green;'>{line[2:]}</span>\n"
-        elif line.startswith('? '):  # Line shows differences within the same line
-            continue
-        else:  # Unchanged line
-            highlighted_html += line[2:] + "\n"
+    # Process headers and footers
+    for section in doc.sections:
+        # Headers
+        header = section.header
+        for para in header.paragraphs:
+            process_text_runs(para.runs, target_word)
 
-    # Wrap highlighted content in an HTML structure
-    result_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>HTML Comparison</title>
-    </head>
-    <body>
-        <pre>{highlighted_html}</pre>
-    </body>
-    </html>
-    """
+        # Footers
+        footer = section.footer
+        for para in footer.paragraphs:
+            process_text_runs(para.runs, target_word)
 
-    # Write the result to a new HTML file
-    with open(output_file, 'w', encoding='utf-8') as output:
-        output.write(result_html)
+    # Save the modified document
+    doc.save(output_path)
 
 # Usage
-file1 = 'file1.html'  # Path to the first HTML file
-file2 = 'file2.html'  # Path to the second HTML file
-output_file = 'output.html'  # Path to save the highlighted HTML
+doc_path = "input.docx"  # Input document
+target_word = "example"  # Word to highlight
+output_path = "output.docx"  # Output document
 
-compare_html(file1, file2, output_file)
+highlight_text_in_red(doc_path, target_word, output_path)
