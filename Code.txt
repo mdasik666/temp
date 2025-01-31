@@ -1,8 +1,62 @@
-ef process_text_runs(runs, target_words):
-        """ Process each run in a paragraph or table cell to highlight multiple words """
-        for run in runs:
-            for word in target_words:
-                f = re.search(word, run.text)
-                if f is not None:
-                    i0,i1 = f.span()
-                run.font.color.rgb = RGBColor(255, 0, 0)  # Set text color to red
+from docx import Document
+from docx.shared import RGBColor
+import re
+
+def highlight_exact_words(doc_path, target_words, output_path):
+    doc = Document(doc_path)
+    word_pattern = r'\b(' + '|'.join(map(re.escape, target_words)) + r')\b'  # Regex to match whole words
+
+    def process_paragraph(para):
+        """ Process and reconstruct a paragraph with exact matches highlighted """
+        original_text = para.text
+        matches = list(re.finditer(word_pattern, original_text))  # Find all exact matches
+
+        if not matches:
+            return  # Skip if no match found
+
+        para.clear()  # Clear the paragraph for reconstruction
+        last_index = 0
+
+        for match in matches:
+            start, end = match.span()
+            # Add the text before the match
+            if start > last_index:
+                para.add_run(original_text[last_index:start])
+            
+            # Add the matched word in red
+            red_run = para.add_run(original_text[start:end])
+            red_run.font.color.rgb = RGBColor(255, 0, 0)  # Red color
+            
+            last_index = end
+
+        # Add the remaining text after the last match
+        if last_index < len(original_text):
+            para.add_run(original_text[last_index:])
+
+    # Process paragraphs in the main document
+    for para in doc.paragraphs:
+        process_paragraph(para)
+
+    # Process tables in the document
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for para in cell.paragraphs:
+                    process_paragraph(para)
+
+    # Process headers and footers
+    for section in doc.sections:
+        for para in section.header.paragraphs:
+            process_paragraph(para)
+        for para in section.footer.paragraphs:
+            process_paragraph(para)
+
+    # Save the modified document
+    doc.save(output_path)
+
+# Usage
+doc_path = "input.docx"  # Path to input document
+target_words = ["example", "document", "highlight"]  # List of exact words to highlight
+output_path = "output.docx"  # Path to save output document
+
+highlight_exact_words(doc_path, target_words, output_path)
