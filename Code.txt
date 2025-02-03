@@ -6,57 +6,78 @@ def highlight_exact_words(doc_path, target_words, output_path):
     doc = Document(doc_path)
     word_pattern = r'\b(' + '|'.join(map(re.escape, target_words)) + r')\b'  # Regex to match whole words
 
-    def process_paragraph(para):
-        """ Process and reconstruct a paragraph with exact matches highlighted """
-        original_text = para.text
-        matches = list(re.finditer(word_pattern, original_text))  # Find all exact matches
+    def process_text_runs(runs):
+        """ Process each run in a paragraph to highlight exact words while keeping formatting """
+        for i in range(len(runs)):
+            run = runs[i]
+            original_text = run.text
+            new_runs = []
+            last_index = 0
 
-        if not matches:
-            return  # Skip if no match found
+            for match in re.finditer(word_pattern, original_text):
+                start, end = match.span()
 
-        para.clear()  # Clear the paragraph for reconstruction
-        last_index = 0
+                # Add the text before the match (unchanged formatting)
+                if start > last_index:
+                    new_run = run._element.addnext(run._element)  # Duplicate the run
+                    new_run = run._parent.add_run(original_text[last_index:start])
+                    new_run.font.bold = run.font.bold
+                    new_run.font.italic = run.font.italic
+                    new_run.font.underline = run.font.underline
+                    new_run.font.size = run.font.size
+                    new_run.font.name = run.font.name  # Keep same font
+                    new_runs.append(new_run)
 
-        for match in matches:
-            start, end = match.span()
-            # Add the text before the match
-            if start > last_index:
-                para.add_run(original_text[last_index:start])
-            
-            # Add the matched word in red
-            red_run = para.add_run(original_text[start:end])
-            red_run.font.color.rgb = RGBColor(255, 0, 0)  # Red color
-            
-            last_index = end
+                # Add the matched word with red color
+                red_run = run._parent.add_run(original_text[start:end])
+                red_run.font.bold = run.font.bold
+                red_run.font.italic = run.font.italic
+                red_run.font.underline = run.font.underline
+                red_run.font.size = run.font.size
+                red_run.font.name = run.font.name
+                red_run.font.color.rgb = RGBColor(255, 0, 0)  # Set red color
+                new_runs.append(red_run)
 
-        # Add the remaining text after the last match
-        if last_index < len(original_text):
-            para.add_run(original_text[last_index:])
+                last_index = end
+
+            # Add remaining text after last match
+            if last_index < len(original_text):
+                new_run = run._parent.add_run(original_text[last_index:])
+                new_run.font.bold = run.font.bold
+                new_run.font.italic = run.font.italic
+                new_run.font.underline = run.font.underline
+                new_run.font.size = run.font.size
+                new_run.font.name = run.font.name
+                new_runs.append(new_run)
+
+            # Remove the original run after creating new ones
+            run.clear()
+            run.text = ""  # Clear existing text
 
     # Process paragraphs in the main document
     for para in doc.paragraphs:
-        process_paragraph(para)
+        process_text_runs(para.runs)
 
     # Process tables in the document
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 for para in cell.paragraphs:
-                    process_paragraph(para)
+                    process_text_runs(para.runs)
 
     # Process headers and footers
     for section in doc.sections:
         for para in section.header.paragraphs:
-            process_paragraph(para)
+            process_text_runs(para.runs)
         for para in section.footer.paragraphs:
-            process_paragraph(para)
+            process_text_runs(para.runs)
 
     # Save the modified document
     doc.save(output_path)
 
 # Usage
 doc_path = "input.docx"  # Path to input document
-target_words = ["example", "document", "highlight"]  # List of exact words to highlight
+target_words = ["example", "document", "highlight"]  # Words to highlight
 output_path = "output.docx"  # Path to save output document
 
 highlight_exact_words(doc_path, target_words, output_path)
