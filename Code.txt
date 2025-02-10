@@ -4,57 +4,75 @@ import json
 def parse_html(html_content):
     return BeautifulSoup(html_content, 'html.parser')
 
-def compare_elements(issue_element, correct_element, path=""):
+def element_to_string(element):
+    """Convert a BeautifulSoup element to a string representation."""
+    return str(element)
+
+def compare_elements(element1, element2, path=""):
     differences = []
 
     # Compare tag names
-    if issue_element.name != correct_element.name:
+    if element1.name != element2.name:
         differences.append({
-            "type": "tag_mismatch",
+            "type": "tag",
             "path": path,
-            "message": f"Tag mismatch: '{issue_element.name}' vs '{correct_element.name}'"
+            "left_element": element_to_string(element1),
+            "right_element": element_to_string(element2),
+            "message": f"Tag mismatch: '{element1.name}' vs '{element2.name}'"
         })
         return differences
 
-    # Compare attributes (report only differences in issue file)
-    if issue_element.attrs != correct_element.attrs:
+    # Compare attributes
+    if element1.attrs != element2.attrs:
         differences.append({
-            "type": "attribute_mismatch",
+            "type": "attributes",
             "path": path,
-            "message": f"Attribute mismatch in issue file: {issue_element.attrs}"
+            "left_element": element_to_string(element1),
+            "right_element": element_to_string(element2),
+            "message": f"Attribute mismatch: {element1.attrs} vs {element2.attrs}"
+        })
+
+    # Compare text
+    if element1.string != element2.string:
+        differences.append({
+            "type": "text",
+            "path": path,
+            "left_element": element_to_string(element1),
+            "right_element": element_to_string(element2),
+            "message": f"Text mismatch: '{element1.string}' vs '{element2.string}'"
         })
 
     # Recursively compare child elements
-    issue_children = [child for child in issue_element.children if child.name]
-    correct_children = [child for child in correct_element.children if child.name]
+    children1 = [child for child in element1.children if child.name]
+    children2 = [child for child in element2.children if child.name]
 
-    max_len = max(len(issue_children), len(correct_children))
+    max_len = max(len(children1), len(children2))
     for i in range(max_len):
-        new_path = f"{path}/{issue_element.name}[{i}]"
-        
-        if i < len(issue_children) and i < len(correct_children):
-            # Compare corresponding child elements
-            differences.extend(compare_elements(issue_children[i], correct_children[i], new_path))
-        elif i < len(issue_children):
-            # Extra element in issue file (added element)
+        new_path = f"{path}/{element1.name}[{i}]"
+        if i < len(children1) and i < len(children2):
+            differences.extend(compare_elements(children1[i], children2[i], new_path))
+        elif i < len(children1):
             differences.append({
-                "type": "added",
+                "type": "missing_in_right",
                 "path": new_path,
-                "message": f"Extra element in issue file: '{issue_children[i].name}'"
+                "left_element": element_to_string(children1[i]),
+                "right_element": None,
+                "message": f"Element '{children1[i].name}' is present in the first HTML but missing in the second."
             })
         else:
-            # Missing element in issue file (deleted element)
             differences.append({
-                "type": "deleted",
+                "type": "missing_in_left",
                 "path": new_path,
-                "message": f"Element '{correct_children[i].name}' is missing in issue file"
+                "left_element": None,
+                "right_element": element_to_string(children2[i]),
+                "message": f"Element '{children2[i].name}' is present in the second HTML but missing in the first."
             })
 
     return differences
 
 # Example usage
-html1 = '<div><p class="text">Hello</p><span>Extra</span></div>'  # Issue file (Incorrect)
-html2 = '<div><p class="text"></p></div>'  # Correct file
+html1 = '<div><p class="text">Hello</p></div>'
+html2 = '<div><p class="text">World</p><span>Extra</span></div>'
 
 soup1 = parse_html(html1)
 soup2 = parse_html(html2)
