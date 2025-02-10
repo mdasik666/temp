@@ -1,6 +1,7 @@
 from bs4 import BeautifulSoup
 
-bugfile = '''
+# Define buggy and correct HTML
+bugfile_html = '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,7 +19,7 @@ bugfile = '''
 </html>
 '''
 
-correctfile = '''
+correctfile_html = '''
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,56 +37,34 @@ correctfile = '''
 </html>
 '''
 
-def compare_html(bug_soup, correct_soup, report, bug_path="", correct_path=""):
-    """Recursively compare HTML elements, attributes, and content."""
-    
-    bug_elements = {tag.name: tag for tag in bug_soup.find_all(True, recursive=False)}
-    correct_elements = {tag.name: tag for tag in correct_soup.find_all(True, recursive=False)}
+# Parse HTML files
+bug_soup = BeautifulSoup(bugfile_html, 'html.parser')
+correct_soup = BeautifulSoup(correctfile_html, 'html.parser')
 
-    # Check for missing elements in bugfile
-    for tag in correct_elements:
-        if tag not in bug_elements:
-            report.append({"report": f"Missing <{tag}> in bug file at {correct_path}/{tag}"})
+# Convert to sets of tag names
+bug_tags = {tag.name for tag in bug_soup.find_all()}
+correct_tags = {tag.name for tag in correct_soup.find_all()}
 
-    # Check for extra elements in bugfile
-    for tag in bug_elements:
-        if tag not in correct_elements:
-            report.append({"report": f"Extra <{tag}> in bug file at {bug_path}/{tag}"})
+# Compare missing and extra tags
+added_tags = correct_tags - bug_tags
+removed_tags = bug_tags - correct_tags
 
-    # Compare elements that exist in both
-    for tag in bug_elements:
-        if tag in correct_elements:
-            bug_tag = bug_elements[tag]
-            correct_tag = correct_elements[tag]
+# Compare attributes
+bug_attrs = {tag.name: tag.attrs for tag in bug_soup.find_all()}
+correct_attrs = {tag.name: tag.attrs for tag in correct_soup.find_all()}
 
-            # Compare attributes
-            bug_attrs = bug_tag.attrs
-            correct_attrs = correct_tag.attrs
-            for attr, value in correct_attrs.items():
-                if attr not in bug_attrs:
-                    report.append({"report": f"Missing attribute '{attr}' in <{tag}> at {correct_path}/{tag}"})
-                elif bug_attrs[attr] != value:
-                    report.append({"report": f"Different attribute '{attr}' in <{tag}> at {bug_path}/{tag} (expected: {value}, found: {bug_attrs[attr]})"})
+# Find differences in attributes
+attribute_changes = {}
+for tag in correct_attrs:
+    if tag in bug_attrs:
+        # Check for added attributes
+        added = {k: v for k, v in correct_attrs[tag].items() if k not in bug_attrs[tag]}
+        # Check for removed attributes
+        removed = {k: v for k, v in bug_attrs[tag].items() if k not in correct_attrs[tag]}
+        if added or removed:
+            attribute_changes[tag] = {"added": added, "removed": removed}
 
-            for attr in bug_attrs:
-                if attr not in correct_attrs:
-                    report.append({"report": f"Extra attribute '{attr}' in <{tag}> at {bug_path}/{tag}"})
-
-            # Compare content (text inside the tag)
-            if bug_tag.get_text(strip=True) != correct_tag.get_text(strip=True):
-                report.append({"report": f"Different content in <{tag}> at {bug_path}/{tag} (expected: '{correct_tag.get_text(strip=True)}', found: '{bug_tag.get_text(strip=True)}')"})
-
-            # Recursively compare child elements
-            compare_html(bug_tag, correct_tag, report, bug_path + "/" + tag, correct_path + "/" + tag)
-
-# Parse HTML
-bug_soup = BeautifulSoup(bugfile, 'html.parser')
-correct_soup = BeautifulSoup(correctfile, 'html.parser')
-
-# Store differences
-report = []
-compare_html(bug_soup, correct_soup, report)
-
-# Output the report
-for item in report:
-    print(item)
+# Output results
+print("Added Tags:", added_tags)
+print("Removed Tags:", removed_tags)
+print("Attribute Changes:", attribute_changes)
