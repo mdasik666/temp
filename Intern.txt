@@ -1,14 +1,56 @@
-Subject: Internship request for my brother [Name]
-Hi @Ganesh,
-I am writing to inquire about potential internship opportunities for my brother, who is currently a final year B.E. student at K. Ramakrishnan College of Technology. As part of the curriculum, all students are required to complete an internship during their final year.
+import difflib
 
-The internship will take place from [Start Date] to [End Date] and will be a valuable learning experience for my brother. He will be able to apply theoretical concepts to practical problems and gain industry insights.
+# Define the bugfile and correctfile as lists of lines
+bugfile_lines = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>sddsdsd</h1>
+    <div>
+        <h1>sdsadsa</h1>
+        <p>hvhdgsvgh</p>
+    </div>
+</body>
+</html>
+'''.splitlines(keepends=True)
 
-We would be grateful if you could consider my brother for an internship position in our organization.
+correctfile_lines = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div>
+        <h1>sdsadsa</h1>
+        <p>ddad</p>
+        <p>hvhdgsvgh</p>
+    </div>
+</body>
+</html>
+'''.splitlines(keepends=True)
 
-Thank you for your time and consideration.
+# Create a Differ object
+d = difflib.Differ()
 
-Thanks,
-[Your Name]
-[Your Phone Number]
-[Your Email Address]
+# Compare the two files
+diff = list(d.compare(bugfile_lines, correctfile_lines))
+
+# Filter the diff to find added or removed lines
+report = []
+for line in diff:
+    if line.startswith('+ '):
+        report.append({"report": f"Added in correct file: {line[2:].strip()}"})
+    elif line.startswith('- '):
+        report.append({"report": f"Removed in correct file: {line[2:].strip()}"})
+
+# Output the report
+for item in report:
+    print(item)
