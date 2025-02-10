@@ -1,84 +1,91 @@
 from bs4 import BeautifulSoup
-import json
 
-def parse_html(html_content):
-    return BeautifulSoup(html_content, 'html.parser')
+bugfile = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>sddsdsd</h1>
+    <div>
+        <h1>sdsadsa</h1>
+        <p>hvhdgsvgh</p>
+    </div>
+</body>
+</html>
+'''
 
-def element_to_string(element):
-    """Convert a BeautifulSoup element to a string representation."""
-    return str(element)
+correctfile = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <div>
+        <h1>sdsadsa</h1>
+        <p>ddad</p>
+        <p>hvhdgsvgh</p>
+    </div>
+</body>
+</html>
+'''
 
-def compare_elements(element1, element2, path=""):
-    differences = []
+def compare_html(bug_soup, correct_soup, report, bug_path="", correct_path=""):
+    """Recursively compare HTML elements, attributes, and content."""
+    
+    bug_elements = {tag.name: tag for tag in bug_soup.find_all(True, recursive=False)}
+    correct_elements = {tag.name: tag for tag in correct_soup.find_all(True, recursive=False)}
 
-    # Compare tag names
-    if element1.name != element2.name:
-        differences.append({
-            "type": "tag",
-            "path": path,
-            "left_element": element_to_string(element1),
-            "right_element": element_to_string(element2),
-            "message": f"Tag mismatch: '{element1.name}' vs '{element2.name}'"
-        })
-        return differences
+    # Check for missing elements in bugfile
+    for tag in correct_elements:
+        if tag not in bug_elements:
+            report.append({"report": f"Missing <{tag}> in bug file at {correct_path}/{tag}"})
 
-    # Compare attributes
-    if element1.attrs != element2.attrs:
-        differences.append({
-            "type": "attributes",
-            "path": path,
-            "left_element": element_to_string(element1),
-            "right_element": element_to_string(element2),
-            "message": f"Attribute mismatch: {element1.attrs} vs {element2.attrs}"
-        })
+    # Check for extra elements in bugfile
+    for tag in bug_elements:
+        if tag not in correct_elements:
+            report.append({"report": f"Extra <{tag}> in bug file at {bug_path}/{tag}"})
 
-    # Compare text
-    if element1.string != element2.string:
-        differences.append({
-            "type": "text",
-            "path": path,
-            "left_element": element_to_string(element1),
-            "right_element": element_to_string(element2),
-            "message": f"Text mismatch: '{element1.string}' vs '{element2.string}'"
-        })
+    # Compare elements that exist in both
+    for tag in bug_elements:
+        if tag in correct_elements:
+            bug_tag = bug_elements[tag]
+            correct_tag = correct_elements[tag]
 
-    # Recursively compare child elements
-    children1 = [child for child in element1.children if child.name]
-    children2 = [child for child in element2.children if child.name]
+            # Compare attributes
+            bug_attrs = bug_tag.attrs
+            correct_attrs = correct_tag.attrs
+            for attr, value in correct_attrs.items():
+                if attr not in bug_attrs:
+                    report.append({"report": f"Missing attribute '{attr}' in <{tag}> at {correct_path}/{tag}"})
+                elif bug_attrs[attr] != value:
+                    report.append({"report": f"Different attribute '{attr}' in <{tag}> at {bug_path}/{tag} (expected: {value}, found: {bug_attrs[attr]})"})
 
-    max_len = max(len(children1), len(children2))
-    for i in range(max_len):
-        new_path = f"{path}/{element1.name}[{i}]"
-        if i < len(children1) and i < len(children2):
-            differences.extend(compare_elements(children1[i], children2[i], new_path))
-        elif i < len(children1):
-            differences.append({
-                "type": "missing_in_right",
-                "path": new_path,
-                "left_element": element_to_string(children1[i]),
-                "right_element": None,
-                "message": f"Element '{children1[i].name}' is present in the first HTML but missing in the second."
-            })
-        else:
-            differences.append({
-                "type": "missing_in_left",
-                "path": new_path,
-                "left_element": None,
-                "right_element": element_to_string(children2[i]),
-                "message": f"Element '{children2[i].name}' is present in the second HTML but missing in the first."
-            })
+            for attr in bug_attrs:
+                if attr not in correct_attrs:
+                    report.append({"report": f"Extra attribute '{attr}' in <{tag}> at {bug_path}/{tag}"})
 
-    return differences
+            # Compare content (text inside the tag)
+            if bug_tag.get_text(strip=True) != correct_tag.get_text(strip=True):
+                report.append({"report": f"Different content in <{tag}> at {bug_path}/{tag} (expected: '{correct_tag.get_text(strip=True)}', found: '{bug_tag.get_text(strip=True)}')"})
 
-# Example usage
-html1 = '<div><p class="text">Hello</p></div>'
-html2 = '<div><p class="text">World</p><span>Extra</span></div>'
+            # Recursively compare child elements
+            compare_html(bug_tag, correct_tag, report, bug_path + "/" + tag, correct_path + "/" + tag)
 
-soup1 = parse_html(html1)
-soup2 = parse_html(html2)
+# Parse HTML
+bug_soup = BeautifulSoup(bugfile, 'html.parser')
+correct_soup = BeautifulSoup(correctfile, 'html.parser')
 
-differences = compare_elements(soup1, soup2)
+# Store differences
+report = []
+compare_html(bug_soup, correct_soup, report)
 
-# Output differences as JSON
-json_report = json.dumps(differences, indent=4)
-print(json_report)
+# Output the report
+for item in report:
+    print(item)
