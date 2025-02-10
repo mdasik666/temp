@@ -8,41 +8,58 @@ def parse_html(file_path):
 
 def extract_structure(soup):
     """Extract the structure (tags and attributes) from the BeautifulSoup object."""
-    structure = []
-    for tag in soup.find_all(True):  # True means all tags
-        tag_info = {
+    structure = {}
+    for i, tag in enumerate(soup.find_all(True)):  # True means all tags
+        structure[i] = {
             'name': tag.name,
             'attrs': tag.attrs
         }
-        structure.append(tag_info)
     return structure
 
-def compare_structures(structure1, structure2):
-    """Compare two HTML structures and return differences."""
-    if len(structure1) != len(structure2):
-        return f"Structure length mismatch: {len(structure1)} vs {len(structure2)}"
+def compare_structures(file1_structure, file2_structure):
+    """Compare two HTML structures and report changes in file1 relative to file2."""
+    changes = {
+        'added': [],
+        'removed': [],
+        'modified': []
+    }
 
-    differences = []
-    for i, (tag1, tag2) in enumerate(zip(structure1, structure2)):
-        if tag1['name'] != tag2['name']:
-            differences.append(f"Tag mismatch at position {i}: {tag1['name']} vs {tag2['name']}")
-        if tag1['attrs'] != tag2['attrs']:
-            differences.append(f"Attribute mismatch at position {i}: {tag1['attrs']} vs {tag2['attrs']}")
+    # Check for added or modified tags
+    for key, tag1 in file1_structure.items():
+        if key not in file2_structure:
+            changes['added'].append(f"Added tag: {tag1['name']} with attributes {tag1['attrs']}")
+        else:
+            tag2 = file2_structure[key]
+            if tag1['name'] != tag2['name']:
+                changes['modified'].append(f"Modified tag: {tag2['name']} -> {tag1['name']}")
+            if tag1['attrs'] != tag2['attrs']:
+                changes['modified'].append(f"Modified attributes in tag {tag1['name']}: {tag2['attrs']} -> {tag1['attrs']}")
 
-    return differences if differences else "Structures are identical."
+    # Check for removed tags
+    for key, tag2 in file2_structure.items():
+        if key not in file1_structure:
+            changes['removed'].append(f"Removed tag: {tag2['name']} with attributes {tag2['attrs']}")
+
+    return changes
 
 def compare_html_files(file1, file2):
-    """Compare the structure of two HTML files."""
+    """Compare the structure of two HTML files and report changes in file1 relative to file2."""
     soup1 = parse_html(file1)
     soup2 = parse_html(file2)
 
-    structure1 = extract_structure(soup1)
-    structure2 = extract_structure(soup2)
+    file1_structure = extract_structure(soup1)
+    file2_structure = extract_structure(soup2)
 
-    return compare_structures(structure1, structure2)
+    return compare_structures(file1_structure, file2_structure)
 
 # Example usage
-file1 = 'file1.html'
-file2 = 'file2.html'
-result = compare_html_files(file1, file2)
-print(result)
+file1 = 'file1.html'  # The file to check for changes
+file2 = 'file2.html'  # The correct reference file
+changes = compare_html_files(file1, file2)
+
+# Print changes
+for change_type, details in changes.items():
+    if details:
+        print(f"{change_type.capitalize()}:")
+        for detail in details:
+            print(f"  - {detail}")
