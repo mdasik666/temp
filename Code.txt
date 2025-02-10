@@ -1,6 +1,55 @@
 from bs4 import BeautifulSoup
 
-# Define buggy and correct HTML
+def compare_elements(element1, element2, path=""):
+    """
+    Compare HTML elements recursively: tags and attributes.
+    Args:
+    - element1, element2: BeautifulSoup element objects to compare.
+    - path: String, to track the current element's path.
+    
+    Returns:
+    - List of differences in elements or attributes.
+    """
+    differences = []
+    
+    # Compare tag names
+    if element1.name != element2.name:
+        differences.append(f"Changed tag: {path} from <{element1.name}> to <{element2.name}>")
+    
+    # Compare attributes
+    attrs1 = element1.attrs
+    attrs2 = element2.attrs
+    added_attrs = set(attrs2.keys()) - set(attrs1.keys())
+    removed_attrs = set(attrs1.keys()) - set(attrs2.keys())
+    
+    for attr in added_attrs:
+        differences.append(f"Added attribute '{attr}' in {path}: {attrs2[attr]}")
+    for attr in removed_attrs:
+        differences.append(f"Removed attribute '{attr}' from {path}: {attrs1[attr]}")
+    
+    # Compare attribute values
+    for attr in set(attrs1.keys()) & set(attrs2.keys()):
+        if attrs1[attr] != attrs2[attr]:
+            differences.append(f"Changed attribute '{attr}' in {path} from {attrs1[attr]} to {attrs2[attr]}")
+    
+    # Compare children elements recursively
+    children1 = list(element1.children)
+    children2 = list(element2.children)
+    
+    max_len = max(len(children1), len(children2))
+    for i in range(max_len):
+        child_path = f"{path}/{element1.name}" if path else element1.name
+        if i < len(children1) and i < len(children2):
+            differences.extend(compare_elements(children1[i], children2[i], child_path))
+        elif i < len(children1):
+            differences.append(f"Removed element at {child_path}: {children1[i]}")
+        elif i < len(children2):
+            differences.append(f"Added element at {child_path}: {children2[i]}")
+    
+    return differences
+
+
+# Define your HTML content (buggy and correct files)
 bugfile_html = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -37,34 +86,16 @@ correctfile_html = '''
 </html>
 '''
 
-# Parse HTML files
+# Parse both HTML files
 bug_soup = BeautifulSoup(bugfile_html, 'html.parser')
 correct_soup = BeautifulSoup(correctfile_html, 'html.parser')
 
-# Convert to sets of tag names
-bug_tags = {tag.name for tag in bug_soup.find_all()}
-correct_tags = {tag.name for tag in correct_soup.find_all()}
+# Compare the elements and attributes
+differences = compare_elements(bug_soup, correct_soup)
 
-# Compare missing and extra tags
-added_tags = correct_tags - bug_tags
-removed_tags = bug_tags - correct_tags
-
-# Compare attributes
-bug_attrs = {tag.name: tag.attrs for tag in bug_soup.find_all()}
-correct_attrs = {tag.name: tag.attrs for tag in correct_soup.find_all()}
-
-# Find differences in attributes
-attribute_changes = {}
-for tag in correct_attrs:
-    if tag in bug_attrs:
-        # Check for added attributes
-        added = {k: v for k, v in correct_attrs[tag].items() if k not in bug_attrs[tag]}
-        # Check for removed attributes
-        removed = {k: v for k, v in bug_attrs[tag].items() if k not in correct_attrs[tag]}
-        if added or removed:
-            attribute_changes[tag] = {"added": added, "removed": removed}
-
-# Output results
-print("Added Tags:", added_tags)
-print("Removed Tags:", removed_tags)
-print("Attribute Changes:", attribute_changes)
+# Output the results
+if differences:
+    for diff in differences:
+        print(diff)
+else:
+    print("No differences found!")
