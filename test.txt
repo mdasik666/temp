@@ -1,0 +1,47 @@
+input:
+
+bugfile = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<body>
+    <h1>sddsdsd</h1>
+    <div>
+        <h1>sdsadsa</h1>
+        <p>hvhdgsvgh</p>
+    </div>
+</body>
+</html>
+'''
+
+    correctfile = ''' 
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Document</title>
+    </head>
+    <body>
+        <div>
+            <h1>sdsadsa</h1>
+            <p>ddad</p>
+            <p>hvhdgsvgh</p>
+        </div>
+    </body>
+    </html>
+    '''
+
+
+expected otuput:
+    report = [{
+        "report":"h2 added in bug file",
+    },
+    {
+        "report":"p missing in bug file",
+    }
+    ]
