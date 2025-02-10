@@ -1,101 +1,48 @@
 from bs4 import BeautifulSoup
 
-def compare_elements(element1, element2, path=""):
-    """
-    Compare HTML elements recursively: tags and attributes.
-    Args:
-    - element1, element2: BeautifulSoup element objects to compare.
-    - path: String, to track the current element's path.
-    
-    Returns:
-    - List of differences in elements or attributes.
-    """
+def parse_html(file_path):
+    """Parse an HTML file and return a BeautifulSoup object."""
+    with open(file_path, 'r', encoding='utf-8') as file:
+        content = file.read()
+    return BeautifulSoup(content, 'html.parser')
+
+def extract_structure(soup):
+    """Extract the structure (tags and attributes) from the BeautifulSoup object."""
+    structure = []
+    for tag in soup.find_all(True):  # True means all tags
+        tag_info = {
+            'name': tag.name,
+            'attrs': tag.attrs
+        }
+        structure.append(tag_info)
+    return structure
+
+def compare_structures(structure1, structure2):
+    """Compare two HTML structures and return differences."""
+    if len(structure1) != len(structure2):
+        return f"Structure length mismatch: {len(structure1)} vs {len(structure2)}"
+
     differences = []
-    
-    # Compare tag names
-    if element1.name != element2.name:
-        differences.append(f"Changed tag: {path} from <{element1.name}> to <{element2.name}>")
-    
-    # Compare attributes
-    attrs1 = element1.attrs
-    attrs2 = element2.attrs
-    added_attrs = set(attrs2.keys()) - set(attrs1.keys())
-    removed_attrs = set(attrs1.keys()) - set(attrs2.keys())
-    
-    for attr in added_attrs:
-        differences.append(f"Added attribute '{attr}' in {path}: {attrs2[attr]}")
-    for attr in removed_attrs:
-        differences.append(f"Removed attribute '{attr}' from {path}: {attrs1[attr]}")
-    
-    # Compare attribute values
-    for attr in set(attrs1.keys()) & set(attrs2.keys()):
-        if attrs1[attr] != attrs2[attr]:
-            differences.append(f"Changed attribute '{attr}' in {path} from {attrs1[attr]} to {attrs2[attr]}")
-    
-    # Compare children elements recursively
-    children1 = list(element1.children)
-    children2 = list(element2.children)
-    
-    max_len = max(len(children1), len(children2))
-    for i in range(max_len):
-        child_path = f"{path}/{element1.name}" if path else element1.name
-        if i < len(children1) and i < len(children2):
-            differences.extend(compare_elements(children1[i], children2[i], child_path))
-        elif i < len(children1):
-            differences.append(f"Removed element at {child_path}: {children1[i]}")
-        elif i < len(children2):
-            differences.append(f"Added element at {child_path}: {children2[i]}")
-    
-    return differences
+    for i, (tag1, tag2) in enumerate(zip(structure1, structure2)):
+        if tag1['name'] != tag2['name']:
+            differences.append(f"Tag mismatch at position {i}: {tag1['name']} vs {tag2['name']}")
+        if tag1['attrs'] != tag2['attrs']:
+            differences.append(f"Attribute mismatch at position {i}: {tag1['attrs']} vs {tag2['attrs']}")
 
+    return differences if differences else "Structures are identical."
 
-# Define your HTML content (buggy and correct files)
-bugfile_html = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <h1>sddsdsd</h1>
-    <div>
-        <h1>sdsadsa</h1>
-        <p>hvhdgsvgh</p>
-    </div>
-</body>
-</html>
-'''
+def compare_html_files(file1, file2):
+    """Compare the structure of two HTML files."""
+    soup1 = parse_html(file1)
+    soup2 = parse_html(file2)
 
-correctfile_html = '''
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
-<body>
-    <div>
-        <h1>sdsadsa</h1>
-        <p>ddad</p>
-        <p>hvhdgsvgh</p>
-    </div>
-</body>
-</html>
-'''
+    structure1 = extract_structure(soup1)
+    structure2 = extract_structure(soup2)
 
-# Parse both HTML files
-bug_soup = BeautifulSoup(bugfile_html, 'html.parser')
-correct_soup = BeautifulSoup(correctfile_html, 'html.parser')
+    return compare_structures(structure1, structure2)
 
-# Compare the elements and attributes
-differences = compare_elements(bug_soup, correct_soup)
-
-# Output the results
-if differences:
-    for diff in differences:
-        print(diff)
-else:
-    print("No differences found!")
+# Example usage
+file1 = 'file1.html'
+file2 = 'file2.html'
+result = compare_html_files(file1, file2)
+print(result)
