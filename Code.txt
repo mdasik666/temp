@@ -1,83 +1,66 @@
-from docx import Document
-from docx.shared import RGBColor
-import re
+from bs4 import BeautifulSoup
+import json
 
-def highlight_exact_words(doc_path, target_words, output_path):
-    doc = Document(doc_path)
-    word_pattern = r'\b(' + '|'.join(map(re.escape, target_words)) + r')\b'  # Regex to match whole words
+def parse_html(html_content):
+    return BeautifulSoup(html_content, 'html.parser')
 
-    def process_text_runs(runs):
-        """ Process each run in a paragraph to highlight exact words while keeping formatting """
-        for i in range(len(runs)):
-            run = runs[i]
-            original_text = run.text
-            new_runs = []
-            last_index = 0
+def compare_elements(issue_element, correct_element, path=""):
+    differences = []
 
-            for match in re.finditer(word_pattern, original_text):
-                start, end = match.span()
+    # Compare tag names
+    if issue_element.name != correct_element.name:
+        differences.append({
+            "type": "tag_mismatch",
+            "path": path,
+            "message": f"Tag mismatch: '{issue_element.name}' vs '{correct_element.name}'"
+        })
+        return differences
 
-                # Add the text before the match (unchanged formatting)
-                if start > last_index:
-                    new_run = run._element.addnext(run._element)  # Duplicate the run
-                    new_run = run._parent.add_run(original_text[last_index:start])
-                    new_run.font.bold = run.font.bold
-                    new_run.font.italic = run.font.italic
-                    new_run.font.underline = run.font.underline
-                    new_run.font.size = run.font.size
-                    new_run.font.name = run.font.name  # Keep same font
-                    new_runs.append(new_run)
+    # Compare attributes (report only differences in issue file)
+    if issue_element.attrs != correct_element.attrs:
+        differences.append({
+            "type": "attribute_mismatch",
+            "path": path,
+            "message": f"Attribute mismatch in issue file: {issue_element.attrs}"
+        })
 
-                # Add the matched word with red color
-                red_run = run._parent.add_run(original_text[start:end])
-                red_run.font.bold = run.font.bold
-                red_run.font.italic = run.font.italic
-                red_run.font.underline = run.font.underline
-                red_run.font.size = run.font.size
-                red_run.font.name = run.font.name
-                red_run.font.color.rgb = RGBColor(255, 0, 0)  # Set red color
-                new_runs.append(red_run)
+    # Recursively compare child elements
+    issue_children = [child for child in issue_element.children if child.name]
+    correct_children = [child for child in correct_element.children if child.name]
 
-                last_index = end
+    max_len = max(len(issue_children), len(correct_children))
+    for i in range(max_len):
+        new_path = f"{path}/{issue_element.name}[{i}]"
+        
+        if i < len(issue_children) and i < len(correct_children):
+            # Compare corresponding child elements
+            differences.extend(compare_elements(issue_children[i], correct_children[i], new_path))
+        elif i < len(issue_children):
+            # Extra element in issue file (added element)
+            differences.append({
+                "type": "added",
+                "path": new_path,
+                "message": f"Extra element in issue file: '{issue_children[i].name}'"
+            })
+        else:
+            # Missing element in issue file (deleted element)
+            differences.append({
+                "type": "deleted",
+                "path": new_path,
+                "message": f"Element '{correct_children[i].name}' is missing in issue file"
+            })
 
-            # Add remaining text after last match
-            if last_index < len(original_text):
-                new_run = run._parent.add_run(original_text[last_index:])
-                new_run.font.bold = run.font.bold
-                new_run.font.italic = run.font.italic
-                new_run.font.underline = run.font.underline
-                new_run.font.size = run.font.size
-                new_run.font.name = run.font.name
-                new_runs.append(new_run)
+    return differences
 
-            # Remove the original run after creating new ones
-            run.clear()
-            run.text = ""  # Clear existing text
+# Example usage
+html1 = '<div><p class="text">Hello</p><span>Extra</span></div>'  # Issue file (Incorrect)
+html2 = '<div><p class="text"></p></div>'  # Correct file
 
-    # Process paragraphs in the main document
-    for para in doc.paragraphs:
-        process_text_runs(para.runs)
+soup1 = parse_html(html1)
+soup2 = parse_html(html2)
 
-    # Process tables in the document
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    process_text_runs(para.runs)
+differences = compare_elements(soup1, soup2)
 
-    # Process headers and footers
-    for section in doc.sections:
-        for para in section.header.paragraphs:
-            process_text_runs(para.runs)
-        for para in section.footer.paragraphs:
-            process_text_runs(para.runs)
-
-    # Save the modified document
-    doc.save(output_path)
-
-# Usage
-doc_path = "input.docx"  # Path to input document
-target_words = ["example", "document", "highlight"]  # Words to highlight
-output_path = "output.docx"  # Path to save output document
-
-highlight_exact_words(doc_path, target_words, output_path)
+# Output differences as JSON
+json_report = json.dumps(differences, indent=4)
+print(json_report)
